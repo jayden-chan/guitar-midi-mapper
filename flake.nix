@@ -1,5 +1,5 @@
 {
-  description = "Build a cargo project without extra checks";
+  description = "Map inputs from a guitar hero guitar to MIDI notes/control changes";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -34,10 +34,11 @@
 
           buildInputs = [
             pkgs.udev
+            pkgs.alsa-lib
           ];
         };
 
-        my-crate = craneLib.buildPackage (
+        guitar-midi-mapper = craneLib.buildPackage (
           commonArgs
           // {
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -50,13 +51,13 @@
       in
       {
         checks = {
-          inherit my-crate;
+          inherit guitar-midi-mapper;
         };
 
-        packages.default = my-crate;
+        packages.default = guitar-midi-mapper;
 
         apps.default = flake-utils.lib.mkApp {
-          drv = my-crate;
+          drv = guitar-midi-mapper;
         };
 
         devShells.default = craneLib.devShell {
@@ -70,6 +71,7 @@
           packages = [
             pkgs.pkg-config
             pkgs.cargo-edit
+            pkgs.rust-analyzer-unwrapped
           ];
         };
       }
