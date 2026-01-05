@@ -1,5 +1,5 @@
 {
-  description = "Map inputs from a guitar hero guitar to MIDI notes/control changes";
+  description = "Map inputs from a Guitar Hero/RB guitar to MIDI";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
