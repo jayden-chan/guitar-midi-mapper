@@ -85,7 +85,7 @@ fn main() {
                     let mapped_code = (code.into_u32() % 255) as u8;
                     let _ = conn_out.send(&[NOTE_OFF_MSG, mapped_code, VELOCITY]);
                 }
-                EventType::AxisChanged(_axis, _value, code) => {
+                EventType::AxisChanged(_axis, value, code) => {
                     let mapped_code = (code.into_u32() % 255) as u8;
                     if mapped_code == 6 {
                         let mapped_value = (time
@@ -95,6 +95,10 @@ fn main() {
                             % 127) as u8;
 
                         let _ = conn_out.send(&[CTRL_CHANGE_MSG, mapped_code, mapped_value]);
+                    } else if mapped_code == 7 && value > 0.85 {
+                        let _ = conn_out.send(&[NOTE_ON_MSG, mapped_code, VELOCITY]);
+                        sleep(Duration::from_millis(1));
+                        let _ = conn_out.send(&[NOTE_OFF_MSG, mapped_code, VELOCITY]);
                     }
                 }
                 _ => {}
