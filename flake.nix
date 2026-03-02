@@ -71,7 +71,7 @@
           packages = [
             pkgs.pkg-config
             pkgs.cargo-edit
-            pkgs.rust-analyzer-unwrapped
+            pkgs.rust-analyzer
           ];
         };
       }
