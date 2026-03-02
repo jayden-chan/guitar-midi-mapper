@@ -1,51 +1,109 @@
 use gilrs::{Event, EventType, Gilrs};
 use midir::{MidiOutput, MidiOutputPort};
-use std::io::{stdin, stdout, Write};
+use regex::Regex;
+use std::env;
 use std::sync::mpsc::channel;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 fn main() {
-    let mut gilrs = Gilrs::new().unwrap();
+    let args: Vec<String> = env::args().collect();
 
-    for (id, gamepad) in gilrs.gamepads() {
-        println!("{} {} {:?}", id, gamepad.name(), gamepad.power_info());
+    if args.len() == 1 {
+        let gilrs = Gilrs::new().unwrap();
+        let mut found_gamepad = false;
+
+        println!("Available Gamepads:");
+        for (id, gamepad) in gilrs.gamepads() {
+            println!("  - {} (ID: {})", gamepad.name(), id);
+            found_gamepad = true;
+        }
+
+        if !found_gamepad {
+            println!("  (No gamepads detected)");
+        }
+
+        let midi_out = MidiOutput::new("Guitar Midi Mapper").unwrap();
+        let out_ports = midi_out.ports();
+
+        println!("\nAvailable MIDI Output Ports:");
+        if out_ports.is_empty() {
+            println!("  (No MIDI output ports detected)");
+        } else {
+            for p in out_ports {
+                println!("  - {}", midi_out.port_name(&p).unwrap());
+            }
+        }
+
+        return;
     }
 
-    print!("Please select gamepad: ");
-    stdout().flush().unwrap();
-    let mut input = String::new();
-    stdin().read_line(&mut input).unwrap();
+    if args.len() != 3 {
+        eprintln!("Usage: {} <gamepad_regex> <midi_regex>", args[0]);
+        std::process::exit(1);
+    }
 
-    let selected_id: usize = input.trim().parse().unwrap();
+    let gamepad_re = Regex::new(&args[1]).expect("Invalid gamepad regex");
+    let midi_re = Regex::new(&args[2]).expect("Invalid MIDI regex");
+
+    let mut gilrs = Gilrs::new().unwrap();
+
+    let selected_id = loop {
+        let matching_gamepads: Vec<_> = gilrs
+            .gamepads()
+            .filter(|(_, gamepad)| gamepad_re.is_match(gamepad.name()))
+            .collect();
+
+        match matching_gamepads.len() {
+            0 => {
+                println!("Gamepad '{}' not found, retrying in 3 seconds...", args[1]);
+                sleep(Duration::from_secs(3));
+
+                // need to refresh gilrs for the new gamepads to show up
+                while let Some(_) = gilrs.next_event() {}
+            }
+            1 => {
+                let (id, gamepad) = matching_gamepads[0];
+                println!("Selected gamepad: {} (ID: {})", gamepad.name(), id);
+                break usize::from(id);
+            }
+            _ => {
+                eprintln!("Multiple matching gamepads found:");
+                for (id, gamepad) in matching_gamepads {
+                    eprintln!("  - {} (ID: {})", gamepad.name(), id);
+                }
+                panic!("Multiple matching gamepads found");
+            }
+        }
+    };
 
     let midi_out = MidiOutput::new("Guitar Midi Mapper").unwrap();
-
     let out_ports = midi_out.ports();
-    let out_port: &MidiOutputPort = match out_ports.len() {
-        0 => panic!("no output port found"),
+
+    let matching_midi_ports: Vec<_> = out_ports
+        .iter()
+        .filter(|p| {
+            let name = midi_out.port_name(p).unwrap();
+            midi_re.is_match(&name)
+        })
+        .collect();
+
+    let out_port: &MidiOutputPort = match matching_midi_ports.len() {
+        0 => panic!("No matching MIDI output port found for regex: {}", args[2]),
         1 => {
+            let port = matching_midi_ports[0];
             println!(
-                "Choosing the only available output port: {}",
-                midi_out.port_name(&out_ports[0]).unwrap()
+                "Selected MIDI output port: {}",
+                midi_out.port_name(port).unwrap()
             );
-            &out_ports[0]
+            port
         }
         _ => {
-            println!("\nAvailable output ports:");
-            for (i, p) in out_ports.iter().enumerate() {
-                println!("{}: {}", i, midi_out.port_name(p).unwrap());
+            eprintln!("Multiple matching MIDI output ports found:");
+            for p in matching_midi_ports {
+                eprintln!("  - {}", midi_out.port_name(p).unwrap());
             }
-
-            print!("Please select output port: ");
-            stdout().flush().unwrap();
-            let mut input = String::new();
-            stdin().read_line(&mut input).unwrap();
-
-            out_ports
-                .get(input.trim().parse::<usize>().unwrap())
-                .ok_or("invalid output port selected")
-                .unwrap()
+            panic!("Multiple matching MIDI output ports found");
         }
     };
 
