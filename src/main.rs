@@ -48,32 +48,24 @@ fn main() {
 
     let mut gilrs = Gilrs::new().unwrap();
 
-    let selected_id = loop {
-        let matching_gamepads: Vec<_> = gilrs
-            .gamepads()
-            .filter(|(_, gamepad)| gamepad_re.is_match(gamepad.name()))
-            .collect();
+    let matching_gamepads: Vec<_> = gilrs
+        .gamepads()
+        .filter(|(_, gamepad)| gamepad_re.is_match(gamepad.name()))
+        .collect();
 
-        match matching_gamepads.len() {
-            0 => {
-                println!("Gamepad '{}' not found, retrying in 3 seconds...", args[1]);
-                sleep(Duration::from_secs(3));
-
-                // need to refresh gilrs for the new gamepads to show up
-                while let Some(_) = gilrs.next_event() {}
+    let selected_id = match matching_gamepads.len() {
+        0 => panic!("Gamepad '{}' not found", args[1]),
+        1 => {
+            let (id, gamepad) = matching_gamepads[0];
+            println!("Selected gamepad: {} (ID: {})", gamepad.name(), id);
+            usize::from(id)
+        }
+        _ => {
+            eprintln!("Multiple matching gamepads found:");
+            for (id, gamepad) in matching_gamepads {
+                eprintln!("  - {} (ID: {})", gamepad.name(), id);
             }
-            1 => {
-                let (id, gamepad) = matching_gamepads[0];
-                println!("Selected gamepad: {} (ID: {})", gamepad.name(), id);
-                break usize::from(id);
-            }
-            _ => {
-                eprintln!("Multiple matching gamepads found:");
-                for (id, gamepad) in matching_gamepads {
-                    eprintln!("  - {} (ID: {})", gamepad.name(), id);
-                }
-                panic!("Multiple matching gamepads found");
-            }
+            panic!("Multiple matching gamepads found");
         }
     };
 
